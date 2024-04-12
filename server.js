@@ -53,7 +53,7 @@ app.get('/nba/stats/:gameId', async (req, res) => {
 });
 
 /**
- * Schedule game checks to start at 4 PM EST every day.
+ * Schedule game checks to start at 7 PM EST every day.
  * Note: '0 16 * * *' runs at 16:00 UTC, which is 12:00 PM EST. Adjust according to daylight saving time.
  */
 schedule.scheduleJob('0 23 * * *', function() {
@@ -78,12 +78,17 @@ async function setupGameChecks() {
 /**
  * Schedules the initial halftime check for one hour after the game starts.
  */
-function scheduleInitialHalftimeCheck(game) {
-    const startTime = new Date(game.startTime); // Ensure startTime is correctly parsed as a Date object
-    const oneHourLater = new Date(startTime.getTime() + 3600000); // 1 hour later
+ function scheduleInitialHalftimeCheck(game) {
+    // Assuming game.time includes properly formatted HH:mm time
+    // and game.date includes the YYYY-MM-DD format
+    const gameDateTimeString = `${game.date}T${game.time}:00`; // Appending ':00' assuming time is in HH:mm format
+    const gameDateTime = moment.tz(gameDateTimeString, "YYYY-MM-DDTHH:mm:ss", "America/New_York").toDate(); // Convert local time to Date object
+
+    // Calculate one hour after game start time
+    const oneHourLater = new Date(gameDateTime.getTime() + 3600000); // 1 hour later in UTC
 
     schedule.scheduleJob(oneHourLater, function() {
-        console.log(`Checking for halftime status of game ${game.gameId}...`);
+        console.log(`Checking for halftime status of game ${game.gameId} at ${oneHourLater}...`);
         checkAndRepeatHalftime(game);
     });
 }

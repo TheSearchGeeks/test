@@ -14,15 +14,14 @@ let allGameData = [];
 export async function getCombinedNBAGames() {
     const currentDate = new Date();
     const currentDateEST = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
-    const dateString = format(currentDate, "yyyy-MM-dd"); // Format current date to YYYY-MM-DD
-    const nextDayDate = format(addDays(currentDate, 1), "yyyy-MM-dd"); // Get next day's date
+    const dateString = format(currentDate, "yyyy-MM-dd"); // Today's date formatted
+    const nextDayDate = format(addDays(currentDate, 1), "yyyy-MM-dd"); // Tomorrow's date formatted
 
     const commenceTimeFrom = `${dateString}T00:00:00Z`;
-    const commenceTimeTo = `${nextDayDate}T07:00:00Z`; // Include games until 3 AM EST next day (which is 7 AM UTC)
+    const commenceTimeTo = `${nextDayDate}T22:00:00Z`; // Include games until 10 PM UTC next day
 
     const oddsApiUrl = `https://api.the-odds-api.com/v4/sports/basketball_nba/events?apiKey=${apiKeyOdds}&commenceTimeFrom=${commenceTimeFrom}&commenceTimeTo=${commenceTimeTo}&dateFormat=iso`;
-    const formattedDate = new Date(currentDateEST).toISOString().split('T')[0];
-    const rapidApiUrl = `https://api-nba-v1.p.rapidapi.com/games?date=${formattedDate}`;
+    
     const rapidApiOptions = {
       method: 'GET',
       headers: {
@@ -32,52 +31,56 @@ export async function getCombinedNBAGames() {
     };
 
     try {
-        const [oddsResponse, rapidResponse] = await Promise.all([
-            axios.get(oddsApiUrl),
-            fetch(rapidApiUrl, rapidApiOptions).then(res => res.json())
-        ]);
-
+        // Fetch odds data from Odds API
+        const oddsResponse = await axios.get(oddsApiUrl);
         const oddsGames = oddsResponse.data.map(game => ({
             homeTeam: game.home_team,
             awayTeam: game.away_team,
             DKGameID: game.id
         }));
 
-        const rapidGames = rapidResponse.response.map(game => ({
-            gameId: game.id,
-            homeTeam: {
-              name: game.teams.home.name,
-              alias: game.teams.home.code,
-            },
-            awayTeam: {
-              name: game.teams.visitors.name,
-              alias: game.teams.visitors.code,
-            },
-            date: moment(game.date.start).tz('America/New_York').format('YYYY-MM-DD'),
-            time: moment(game.date.start).tz('America/New_York').format('HH:mm')
-        }));
+        // Fetch NBA data for current day and next day
+        const [currentDayResponse, nextDayResponse] = await Promise.all([
+            fetch(`https://api-nba-v1.p.rapidapi.com/games?date=${dateString}`, rapidApiOptions).then(res => res.json()),
+            fetch(`https://api-nba-v1.p.rapidapi.com/games?date=${nextDayDate}`, rapidApiOptions).then(res => res.json())
+        ]);
 
-        // Filter combinedGames to include only those with both gameIds and DKGameIDs
-        const combinedGames = oddsGames.reduce((acc, oddsGame) => {
-            const rapidGame = rapidGames.find(rg => rg.gameId && rg.homeTeam.name === oddsGame.homeTeam && rg.awayTeam.name === oddsGame.awayTeam);
-            if (rapidGame && oddsGame.DKGameID) { // Ensure both identifiers are present
-                acc.push({
+        // Combine responses and filter for games before 22:00 UTC on the next day
+        const combinedRapidGames = [...currentDayResponse.response, ...nextDayResponse.response]
+            .filter(game => new Date(game.date.start).toISOString() < `${nextDayDate}T22:00:00Z`)
+            .map(game => ({
+                gameId: game.id,
+                homeTeam: {
+                  name: game.teams.home.name,
+                  alias: game.teams.home.code,
+                },
+                awayTeam: {
+                  name: game.teams.visitors.name,
+                  alias: game.teams.visitors.code,
+                },
+                date: moment(game.date.start).tz('America/New_York').format('YYYY-MM-DD'),
+                time: moment(game.date.start).tz('America/New_York').format('HH:mm')
+            }));
+
+        // Combine games from both APIs
+        const combinedGames = oddsGames.map(oddsGame => {
+            const rapidGame = combinedRapidGames.find(rg => rg.homeTeam.name === oddsGame.homeTeam && rg.awayTeam.name === oddsGame.awayTeam);
+            if (rapidGame) {
+                return {
                     ...oddsGame,
                     ...rapidGame
-                });
+                };
             }
-            return acc;
-        }, []);
+            return null;
+        }).filter(game => game !== null); // Filter out null entries where no match was found
 
         console.log("Combined Games:", combinedGames);
-
         return combinedGames;
     } catch (error) {
         console.error('Error fetching combined NBA games:', error);
         return [];
     }
 }
-
 //CHECK HALFTIME
 export async function checkHalftimeStatus(gameId) {
     const url = `https://api-nba-v1.p.rapidapi.com/games?id=${gameId}`;

@@ -18,17 +18,17 @@ export async function getCombinedNBAGames() {
     const nextDayDate = format(addDays(currentDate, 1), "yyyy-MM-dd"); // Get next day's date
 
     const commenceTimeFrom = `${dateString}T00:00:00Z`;
-    const commenceTimeTo = `${nextDayDate}T10:00:00Z`; // Include games until 3 AM EST next day (which is 7 AM UTC)
+    const commenceTimeTo = `${nextDayDate}T07:00:00Z`; // Include games until 3 AM EST next day (which is 7 AM UTC)
 
     const oddsApiUrl = `https://api.the-odds-api.com/v4/sports/basketball_nba/events?apiKey=${apiKeyOdds}&commenceTimeFrom=${commenceTimeFrom}&commenceTimeTo=${commenceTimeTo}&dateFormat=iso`;
     const formattedDate = new Date(currentDateEST).toISOString().split('T')[0];
     const rapidApiUrl = `https://api-nba-v1.p.rapidapi.com/games?date=${formattedDate}`;
     const rapidApiOptions = {
-        method: 'GET',
-        headers: {
-            'X-RapidAPI-Key': apiKeyRapid,
-            'X-RapidAPI-Host': 'api-nba-v1.p.rapidapi.com'
-        }
+      method: 'GET',
+      headers: {
+        'X-RapidAPI-Key': apiKeyRapid,
+        'X-RapidAPI-Host': 'api-nba-v1.p.rapidapi.com'
+      }
     };
 
     try {
@@ -37,38 +37,46 @@ export async function getCombinedNBAGames() {
             fetch(rapidApiUrl, rapidApiOptions).then(res => res.json())
         ]);
 
-        const oddsGames = oddsResponse.data;
-        const rapidGames = rapidResponse.response;
+        const oddsGames = oddsResponse.data.map(game => ({
+            homeTeam: game.home_team,
+            awayTeam: game.away_team,
+            DKGameID: game.id
+        }));
 
+        const rapidGames = rapidResponse.response.map(game => ({
+            gameId: game.id,
+            homeTeam: {
+              name: game.teams.home.name,
+              alias: game.teams.home.code,
+            },
+            awayTeam: {
+              name: game.teams.visitors.name,
+              alias: game.teams.visitors.code,
+            },
+            date: moment(game.date.start).tz('America/New_York').format('YYYY-MM-DD'),
+            time: moment(game.date.start).tz('America/New_York').format('HH:mm')
+        }));
+
+        // Filter combinedGames to include only those with both gameIds and DKGameIDs
         const combinedGames = oddsGames.reduce((acc, oddsGame) => {
-            const rapidGame = rapidGames.find(rg => rg.homeTeam.name === oddsGame.home_team && rg.awayTeam.name === oddsGame.away_team);
-            if (rapidGame && rapidGame.id) { // Ensure rapidGame exists and has a gameId
+            const rapidGame = rapidGames.find(rg => rg.gameId && rg.homeTeam.name === oddsGame.homeTeam && rg.awayTeam.name === oddsGame.awayTeam);
+            if (rapidGame && oddsGame.DKGameID) { // Ensure both identifiers are present
                 acc.push({
                     ...oddsGame,
-                    gameId: rapidGame.id,
-                    homeTeam: {
-                      name: rapidGame.teams.home.name,
-                      alias: rapidGame.teams.home.code,
-                    },
-                    awayTeam: {
-                      name: rapidGame.teams.visitors.name,
-                      alias: rapidGame.teams.visitors.code,
-                    },
-                    date: moment(rapidGame.date.start).tz('America/New_York').format('YYYY-MM-DD'),
-                    time: moment(rapidGame.date.start).tz('America/New_York').format('HH:mm')
+                    ...rapidGame
                 });
             }
             return acc;
         }, []);
 
         console.log("Combined Games:", combinedGames);
+
         return combinedGames;
     } catch (error) {
         console.error('Error fetching combined NBA games:', error);
         return [];
     }
 }
-
 
 //CHECK HALFTIME
 export async function checkHalftimeStatus(gameId) {

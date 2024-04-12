@@ -2,6 +2,7 @@ import express from 'express';
 import schedule from 'node-schedule';
 import { getCombinedNBAGames, checkHalftimeStatus, aggregateGameData, predict } from './nbaUtils.js';
 import { createObjectCsvWriter } from 'csv-writer';
+import moment from 'moment-timezone';
 const app = express();
 const port = process.env.PORT || 3001;
 
@@ -56,7 +57,7 @@ app.get('/nba/stats/:gameId', async (req, res) => {
  * Schedule game checks to start at 7 PM EST every day.
  * Note: '0 16 * * *' runs at 16:00 UTC, which is 12:00 PM EST. Adjust according to daylight saving time.
  */
-schedule.scheduleJob('21 22 * * *', function() {
+schedule.scheduleJob('25 22 * * *', function() {
     console.log(`${new Date().toISOString()} - Setting up game checks...`);
     setupGameChecks();
 });

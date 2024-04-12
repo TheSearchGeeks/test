@@ -8,7 +8,7 @@ const port = process.env.PORT || 3001;
 app.listen(port, () => {
     console.log(`Server running on port ${port}`);
 });
-
+//second
 // Route to get all combined NBA games
 app.get('/nba/games', async (req, res) => {
     try {

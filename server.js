@@ -56,8 +56,8 @@ app.get('/nba/stats/:gameId', async (req, res) => {
  * Schedule game checks to start at 4 PM EST every day.
  * Note: '0 16 * * *' runs at 16:00 UTC, which is 12:00 PM EST. Adjust according to daylight saving time.
  */
-schedule.scheduleJob('0 22 * * *', function() {
-    console.log("Setting up game checks at 4 PM EST...");
+schedule.scheduleJob('0 23 * * *', function() {
+    console.log(`${new Date().toISOString()} - Setting up game checks...`);
     setupGameChecks();
 });
 
@@ -123,7 +123,7 @@ function writeToCSV(selectedBets, gameId) {
         return;
     }
     const csvWriter = createObjectCsvWriter({
-        path: `bets_${gameId}.csv`,
+        path: `./bets_${gameId}.csv`,
         header: [
             {id: 'PlayerName', title: 'PlayerName'},
             {id: 'CurrentPoints', title: 'CurrentPoints'},

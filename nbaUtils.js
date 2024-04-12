@@ -12,6 +12,7 @@ let playerStatsInfo = [];
 let allGameData = [];
 //GETGAMES
 export async function getCombinedNBAGames() {
+    gamesToday = [];
     const currentDate = new Date();
     const currentDateEST = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
     const dateString = format(currentDate, "yyyy-MM-dd"); // Today's date formatted
@@ -75,6 +76,7 @@ export async function getCombinedNBAGames() {
         }).filter(game => game !== null); // Filter out null entries where no match was found
 
         console.log("Combined Games:", combinedGames);
+        gamesToday = combinedGames;
         return combinedGames;
     } catch (error) {
         console.error('Error fetching combined NBA games:', error);

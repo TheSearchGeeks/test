@@ -13,6 +13,8 @@ let allGameData = [];
 //GETGAMES
 export async function getCombinedNBAGames() {
     gamesToday = [];
+    playerStatsInfo = [];
+    allGameData = [];
     const currentDate = new Date();
     const currentDateEST = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
     const dateString = format(currentDate, "yyyy-MM-dd"); // Today's date formatted
@@ -210,6 +212,7 @@ export async function fetchPlayerStatsForGame(gameId) {
 
 
 export async function aggregateGameData(gameId) {
+
     try {
         // Find game by gameId in your stored gamesToday or refetch necessary game data
         const game = gamesToday.find(g => g.gameId === gameId);

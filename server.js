@@ -5,7 +5,10 @@ import { createObjectCsvWriter } from 'csv-writer';
 import moment from 'moment-timezone';
 const app = express();
 const port = process.env.PORT || 3001;
-import { Pool } from 'pg';
+// Import the whole package as a single module
+import pkg from 'pg';
+// Then, use destructuring to get the Pool class from the package
+const { Pool } = pkg;
 
 const pool = new Pool({
     user: process.env.RDS_USERNAME,
@@ -70,7 +73,7 @@ app.get('/nba/stats/:gameId', async (req, res) => {
  * Schedule game checks to start at 7 PM EST every day.
  * Note: '0 16 * * *' runs at 16:00 UTC, which is 12:00 PM EST. Adjust according to daylight saving time.
  */
-schedule.scheduleJob('09 23 * * *', function() {
+schedule.scheduleJob('13 23 * * *', function() {
     console.log(`${new Date().toISOString()} - Setting up game checks...`);
     setupGameChecks();
 });

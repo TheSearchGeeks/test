@@ -6,9 +6,8 @@ import moment from 'moment-timezone';
 const app = express();
 const port = process.env.PORT || 3001;
 // Import the whole package as a single module
-import pkg from 'pg';
-// Then, use destructuring to get the Pool class from the package
-const { Pool } = pkg;
+import pg from 'pg';
+const { Pool } = pg;
 
 const pool = new Pool({
     user: process.env.RDS_USERNAME,

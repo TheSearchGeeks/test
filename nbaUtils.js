@@ -10,6 +10,7 @@ const apiKeyRapid = '472352de43msh205a31c3062c280p10181djsn3cfbf0fca7ea'; // You
 let gamesToday = [];
 let playerStatsInfo = [];
 let allGameData = [];
+
 //GETGAMES
 export async function getCombinedNBAGames() {
     gamesToday = [];
@@ -227,6 +228,9 @@ export async function aggregateGameData(gameId) {
 
        // Combine all relevant game data
        const completeGameData = {
+        homeTeam: game.homeTeam.name,
+        awayTeam: game.awayTeam.name,
+        date: game.date,
         ...game,
         playerProps,
         playerStats
@@ -242,7 +246,63 @@ export async function aggregateGameData(gameId) {
     }
 }
 
+export async function fetchEndGameStats(gameId) {
+    const endGameStats = [];
+    const options = {
+        method: 'GET',
+        url: 'https://api-nba-v1.p.rapidapi.com/players/statistics',
+        params: {game: gameId},
+        headers: {
+            'X-RapidAPI-Key': '472352de43msh205a31c3062c280p10181djsn3cfbf0fca7ea',
+            'X-RapidAPI-Host': 'api-nba-v1.p.rapidapi.com'
+        }
+    };
 
+    try {
+        const response = await axios.request(options);
+        const stats = response.data.response;
+
+        // Storing each player's stats in the global array
+        stats.forEach(stat => {
+            endGameStats.push({
+                PlayerID: stat.player.id,
+                PlayerName: `${stat.player.firstname} ${stat.player.lastname}`,
+                Team: stat.team.name,
+                Game: {
+                    GameID: stat.game.id,
+                    Date: stat.game.date,
+                    Status: stat.game.status
+                },
+                Points: stat.points,
+                Position: stat.pos,
+                Minutes: stat.min,
+                FieldGoalsMade: stat.fgm,
+                FieldGoalsAttempted: stat.fga,
+                FieldGoalPercentage: stat.fgp,
+                FreeThrowsMade: stat.ftm,
+                FreeThrowsAttempted: stat.fta,
+                FreeThrowPercentage: stat.ftp,
+                ThreePointMade: stat.tpm,
+                ThreePointAttempted: stat.tpa,
+                ThreePointPercentage: stat.tpp,
+                OffensiveRebounds: stat.offReb,
+                DefensiveRebounds: stat.defReb,
+                TotalRebounds: stat.totReb,
+                Assists: stat.assists,
+                PersonalFouls: stat.pFouls,
+                Steals: stat.steals,
+                Turnovers: stat.turnovers,
+                Blocks: stat.blocks,
+                PlusMinus: stat.plusMinus,
+                Comment: stat.comment
+            });
+        });
+    } catch (error) {
+        console.error(`Error fetching end game stats for game ${gameId}:`, error);
+    }
+
+    return endGameStats; // Return the updated array for use elsewhere
+}
 
 export async function predict(gameId) {
     // Retrieve the aggregated game data from the global array by gameId
@@ -274,6 +334,7 @@ export async function predict(gameId) {
                     // Check if half the field goal attempts cover the difference
                     if (potentialPointsFromAttempts >= difference) {
                         selectedBets.push({
+
                             PlayerName: bet.player,
                             CurrentPoints: actualPoints,
                             Line: roundedLine,

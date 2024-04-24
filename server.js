@@ -1,10 +1,23 @@
 import express from 'express';
 import schedule from 'node-schedule';
-import { getCombinedNBAGames, checkHalftimeStatus, aggregateGameData, predict } from './nbaUtils.js';
+import { getCombinedNBAGames, checkHalftimeStatus, aggregateGameData, predict, fetchEndGameStats } from './nbaUtils.js';
 import { createObjectCsvWriter } from 'csv-writer';
 import moment from 'moment-timezone';
 const app = express();
 const port = process.env.PORT || 3001;
+import { Pool } from 'pg';
+
+const pool = new Pool({
+    user: process.env.RDS_USERNAME,
+    host: process.env.RDS_HOSTNAME,
+    database: process.env.RDS_DB_NAME,
+    password: process.env.RDS_PASSWORD,
+    port: process.env.RDS_PORT,
+  });
+pool.on('connect', () => {
+  console.log('Connected to the database');
+});
+
 
 app.listen(port, () => {
     console.log(`Server running on port ${port}`);
@@ -57,7 +70,7 @@ app.get('/nba/stats/:gameId', async (req, res) => {
  * Schedule game checks to start at 7 PM EST every day.
  * Note: '0 16 * * *' runs at 16:00 UTC, which is 12:00 PM EST. Adjust according to daylight saving time.
  */
-schedule.scheduleJob('33 21 * * *', function() {
+schedule.scheduleJob('09 23 * * *', function() {
     console.log(`${new Date().toISOString()} - Setting up game checks...`);
     setupGameChecks();
 });
@@ -70,12 +83,35 @@ async function setupGameChecks() {
         const games = await getCombinedNBAGames();
         games.forEach(game => {
             scheduleInitialHalftimeCheck(game);
+            scheduleEndGameCheck(game)
         });
     } catch (error) {
         console.error("Error setting up game checks:", error);
     }
 }
 
+function scheduleEndGameCheck(game) {
+    const gameDateTimeString = `${game.date}T${game.time}:00`; // Assuming this is correct
+    const gameDateTime = moment.tz(gameDateTimeString, "America/New_York").toDate(); // Convert local time to Date object
+    const threeHoursLater = new Date(gameDateTime.getTime() + 3 * 3600 * 1000); // 3 hours later in UTC
+
+    schedule.scheduleJob(threeHoursLater, function() {
+        console.log(`Running end-game check for game ${game.gameId}...`);
+        performEndGameCheck(game);
+    });
+}
+
+async function performEndGameCheck(gameId) {
+    const playerStats = await fetchEndGameStats(gameId); // Ensure this fetches updated stats
+    const bets = await fetchStoredBets(gameId); // This needs a new function to retrieve bets from DB
+
+    bets.forEach(async (bet) => {
+        const playerStat = playerStats.find(p => p.PlayerID === bet.player_id); // Adjust field as necessary
+        if (playerStat && playerStat.Points >= bet.line) {
+            updateHitStatus(bet.id, true); // Mark 'hit' as true if condition met
+        }
+    });
+}
 /**
  * Schedules the initial halftime check for one hour after the game starts.
  */
@@ -110,36 +146,57 @@ async function checkAndRepeatHalftime(game) {
         schedule.scheduleJob(jobId, fiveMinutesLater, () => checkAndRepeatHalftime(game));
     } else {
         console.log(`It's halftime for game ${game.gameId}. Proceeding with data aggregation...`);
-        aggregateGameData(game.gameId).then(() => {
-            predictAndWriteToCSV(game.gameId);
+        aggregateGameData(game.gameId).then(gameData => {
+            if(gameData){
+                predictAndWriteToDatabase(gameData);
+            }
         });
         
     }
 }
-
-
-async function predictAndWriteToCSV(gameId) {
-    const selectedBets = await predict(gameId);
-    writeToCSV(selectedBets, gameId);
+async function fetchStoredBets(gameId) {
+    const query = 'SELECT id, player_id, line FROM selected WHERE game = $1';
+    const { rows } = await pool.query(query, [gameId]);
+    return rows;
 }
 
-function writeToCSV(selectedBets, gameId) {
-    if (selectedBets.length === 0) {
-        console.log(`No bets to write for game ID ${gameId}.`);
-        return;
-    }
-    const csvWriter = createObjectCsvWriter({
-        path: `./bets_${gameId}.csv`,
-        header: [
-            {id: 'PlayerName', title: 'PlayerName'},
-            {id: 'CurrentPoints', title: 'CurrentPoints'},
-            {id: 'Line', title: 'Line'},
-            {id: 'Odds', title: 'Odds'},
-            {id: 'DifferenceNeeded', title: 'DifferenceNeeded'}
-        ]
-    });
+async function updateHitStatus(betId, hitStatus) {
+    const query = 'UPDATE selected SET hit = $1 WHERE id = $2';
+    await pool.query(query, [hitStatus, betId]);
+    console.log(`Updated hit status for bet ID ${betId} to ${hitStatus}`);
+}
 
-    csvWriter.writeRecords(selectedBets)
-        .then(() => console.log(`Data has been written to CSV for game ID ${gameId}.`))
-        .catch(err => console.error('Error writing to CSV:', err));
+
+async function predictAndWriteToDatabase(gameData) {
+    const selectedBets = await predict(gameData.gameId);
+    if (selectedBets.length > 0) {
+        writeToDatabase(selectedBets, gameData.homeTeam, gameData.awayTeam, gameData.date);
+    } else {
+        console.log(`No bets selected for game ${gameData.homeTeam} vs ${gameData.awayTeam}`);
+    }
+}
+async function writeToDatabase(selectedBets, homeTeam, awayTeam, gameDate) {
+    const query = `
+    INSERT INTO selected (game, date, player, current_points, line, difference, odds, hit)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`;
+
+    try {
+        await Promise.all(selectedBets.map(bet => {
+            const hit = bet.DifferenceNeeded <= 5; // Example logic for 'hit'
+            const game = `${homeTeam} vs ${awayTeam}`;
+            return pool.query(query, [
+                game,
+                gameDate,
+                bet.PlayerName,
+                bet.CurrentPoints,
+                bet.Line,
+                bet.DifferenceNeeded,
+                bet.Odds,
+                false
+            ]);
+        }));
+        console.log(`Data has been written to the database for game ${homeTeam} vs ${awayTeam}.`);
+    } catch (err) {
+        console.error('Error writing to database:', err);
+    }
 }

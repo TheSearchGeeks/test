@@ -39,19 +39,20 @@ app.get('/nba/games', async (req, res) => {
     }
 });
 
-app.get('/print-all-rows', async (req, res) => {
+app.get('/get-all-rows', async (req, res) => {
     try {
         const query = 'SELECT * FROM selected';
         const { rows } = await pool.query(query);
-        rows.forEach(row => {
-            console.log(`${row.id} | ${row.game} | ${row.date} | ${row.player} | ${row.current_points} | ${row.line} | ${row.difference} | ${row.odds} | ${row.hit}`);
-        });
-        res.send('All rows printed to console.'); // Inform the client that the operation was successful
+        let responseText = rows.map(row => 
+            `${row.id} | ${row.game} | ${row.date} | ${row.player} | ${row.current_points} | ${row.line} | ${row.difference} | ${row.odds} | ${row.hit}`
+        ).join('\n');
+        res.type('text/plain').send(responseText); // Send the response in plain text format
     } catch (error) {
         console.error('Failed to fetch rows:', error);
         res.status(500).send('Failed to fetch rows from the database');
     }
 });
+
 
 // Route to get player prop odds for a specific game
 app.get('/nba/odds/:dkGameId', async (req, res) => {

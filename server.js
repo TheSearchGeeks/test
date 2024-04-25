@@ -15,6 +15,10 @@ const pool = new Pool({
     database: process.env.RDS_DB_NAME,
     password: process.env.RDS_PASSWORD,
     port: process.env.RDS_PORT,
+    ssl: {
+        rejectUnauthorized: false, // This bypasses the certificate verification. For production, you should have a valid CA.
+        // If you have CA file: ca: fs.readFileSync("/path/to/server-certificates/root.crt").toString(),
+      }
   });
 pool.on('connect', () => {
   console.log('Connected to the database');
@@ -72,7 +76,7 @@ app.get('/nba/stats/:gameId', async (req, res) => {
  * Schedule game checks to start at 7 PM EST every day.
  * Note: '0 16 * * *' runs at 16:00 UTC, which is 12:00 PM EST. Adjust according to daylight saving time.
  */
-schedule.scheduleJob('22 23 * * *', function() {
+schedule.scheduleJob('34 24 * * *', function() {
     console.log(`${new Date().toISOString()} - Setting up game checks...`);
     setupGameChecks();
 });

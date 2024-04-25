@@ -23,39 +23,6 @@ const pool = new Pool({
 pool.on('connect', () => {
   console.log('Connected to the database');
 });
-async function testDatabaseOperations() {
-    try {
-        // Generate random data
-        const game = 'TestGame' + Math.floor(Math.random() * 1000);
-        const date = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
-        const player = 'Player' + Math.floor(Math.random() * 100);
-        const currentPoints = Math.floor(Math.random() * 50);
-        const line = Math.floor(Math.random() * 50);
-        const difference = line - currentPoints;
-        const odds = Math.floor(Math.random() * 10) + 100;
-        const hit = Math.random() > 0.5;
-
-        // Insert the data
-        const insertQuery = `
-            INSERT INTO selected (game, date, player, current_points, line, difference, odds, hit)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`;
-        const res = await pool.query(insertQuery, [game, date, player, currentPoints, line, difference, odds, hit]);
-        const insertedId = res.rows[0].id;
-
-        // Fetch the inserted data
-        const selectQuery = 'SELECT * FROM selected WHERE id = $1';
-        const selectedRow = await pool.query(selectQuery, [insertedId]);
-
-        // Print the inserted and fetched data
-        console.log('Inserted Row:', res.rows[0]);
-        console.log('Fetched Row:', selectedRow.rows[0]);
-    } catch (err) {
-        console.error('Error during test database operations:', err);
-    }
-}
-
-// Call the function to perform the test
-testDatabaseOperations();
 
 app.listen(port, () => {
     console.log(`Server running on port ${port}`);
@@ -69,6 +36,20 @@ app.get('/nba/games', async (req, res) => {
     } catch (error) {
         console.error("Failed to fetch NBA games:", error);
         res.status(500).send("Failed to fetch NBA games");
+    }
+});
+
+app.get('/print-all-rows', async (req, res) => {
+    try {
+        const query = 'SELECT * FROM selected';
+        const { rows } = await pool.query(query);
+        rows.forEach(row => {
+            console.log(`${row.id} | ${row.game} | ${row.date} | ${row.player} | ${row.current_points} | ${row.line} | ${row.difference} | ${row.odds} | ${row.hit}`);
+        });
+        res.send('All rows printed to console.'); // Inform the client that the operation was successful
+    } catch (error) {
+        console.error('Failed to fetch rows:', error);
+        res.status(500).send('Failed to fetch rows from the database');
     }
 });
 

@@ -44,7 +44,7 @@ app.get('/get-all-rows', async (req, res) => {
         const query = 'SELECT * FROM selected';
         const { rows } = await pool.query(query);
         let responseText = rows.map(row => 
-            `${row.id} | ${row.game} | ${row.date} | ${row.player} | ${row.current_points} | ${row.line} | ${row.difference} | ${row.odds} | ${row.hit}`
+            `id: ${row.id}, game: ${row.game}, date: ${row.date}, player: ${row.player}, current_points: ${row.current_points}, line: ${row.line}, difference: ${row.difference}, odds: ${row.odds}, hit: ${row.hit}`
         ).join('\n');
         res.type('text/plain').send(responseText); // Send the response in plain text format
     } catch (error) {

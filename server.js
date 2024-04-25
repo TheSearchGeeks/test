@@ -76,7 +76,7 @@ app.get('/nba/stats/:gameId', async (req, res) => {
  * Schedule game checks to start at 7 PM EST every day.
  * Note: '0 16 * * *' runs at 16:00 UTC, which is 12:00 PM EST. Adjust according to daylight saving time.
  */
-schedule.scheduleJob('30 01 * * *', function() {
+schedule.scheduleJob('00 22 * * *', function() {
     console.log(`${new Date().toISOString()} - Setting up game checks...`);
     setupGameChecks();
 });
@@ -161,7 +161,7 @@ async function checkAndRepeatHalftime(game) {
     }
 }
 async function fetchStoredBets(gameId) {
-    const query = 'SELECT id, player_id, line FROM selected WHERE game = $1';
+    const query = 'SELECT id, player, line FROM selected WHERE game = $1';
     const { rows } = await pool.query(query, [gameId]);
     return rows;
 }
@@ -176,7 +176,7 @@ async function updateHitStatus(betId, hitStatus) {
 async function predictAndWriteToDatabase(gameData) {
     const selectedBets = await predict(gameData.gameId);
     if (selectedBets.length > 0) {
-        writeToDatabase(selectedBets, gameData.homeTeam, gameData.awayTeam, gameData.date);
+        writeToDatabase(selectedBets, gameData.homeTeam, gameData.awayTeam, String(gameData.date));
     } else {
         console.log(`No bets selected for game ${gameData.homeTeam} vs ${gameData.awayTeam}`);
     }

@@ -45,8 +45,9 @@ export async function getCombinedNBAGames() {
 
         // Fetch NBA data for current day and next day
         const [currentDayResponse, nextDayResponse] = await Promise.all([
-            fetch(`https://api-nba-v1.p.rapidapi.com/games?date=${dateString}`, rapidApiOptions).then(res => res.json()),
-            fetch(`https://api-nba-v1.p.rapidapi.com/games?date=${nextDayDate}`, rapidApiOptions).then(res => res.json())
+                fetch(`https://api-nba-v1.p.rapidapi.com/games?date=${dateString}`, rapidApiOptions).then(res => res.json()).catch(err => { console.error('Failed to fetch current day NBA games:', err); return { response: [] }; }),
+                fetch(`https://api-nba-v1.p.rapidapi.com/games?date=${nextDayDate}`, rapidApiOptions).then(res => res.json()).catch(err => { console.error('Failed to fetch next day NBA games:', err); return { response: [] }; })
+
         ]);
 
         // Combine responses and filter for games before 22:00 UTC on the next day

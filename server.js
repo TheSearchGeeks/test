@@ -95,6 +95,13 @@ schedule.scheduleJob('21 00 * * *', function() {
     setupGameChecks();
 });
 
+// Route to get live box score for a specific game
+app.get('/setup', async (req, res) => {
+    console.log(`${new Date().toISOString()} - Setting up game checks...`);
+    setupGameChecks();
+    res.send("Game checks set up")
+});
+
 /**
  * Sets up initial checks for all games fetched for the day.
  */

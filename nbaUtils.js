@@ -339,7 +339,7 @@ export async function predict(gameId) {
                             PlayerName: bet.player,
                             CurrentPoints: actualPoints,
                             Line: roundedLine,
-                            Odds: parseInt(bet.price.replace(/[^\d-]/g, '')),
+                            Odds: bet.price,
                             DifferenceNeeded: difference
                         });
                     }

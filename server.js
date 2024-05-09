@@ -190,6 +190,7 @@ async function updateHitStatus(betId, hitStatus) {
 async function predictAndWriteToDatabase(gameData) {
     const selectedBets = await predict(gameData.gameId);
     if (selectedBets.length > 0) {
+        console.log(selectedBets)
         writeToDatabase(selectedBets, gameData.homeTeam, gameData.awayTeam, String(gameData.date));
     } else {
         console.log(`No bets selected for game ${gameData.homeTeam} vs ${gameData.awayTeam}`);

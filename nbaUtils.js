@@ -17,7 +17,6 @@ export async function getCombinedNBAGames() {
     playerStatsInfo = [];
     allGameData = [];
     const currentDate = new Date();
-    const currentDateEST = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
     const dateString = format(currentDate, "yyyy-MM-dd"); // Today's date formatted
     const nextDayDate = format(addDays(currentDate, 1), "yyyy-MM-dd"); // Tomorrow's date formatted
 
@@ -27,11 +26,26 @@ export async function getCombinedNBAGames() {
     const oddsApiUrl = `https://api.the-odds-api.com/v4/sports/basketball_nba/events?apiKey=${apiKeyOdds}&commenceTimeFrom=${commenceTimeFrom}&commenceTimeTo=${commenceTimeTo}&dateFormat=iso`;
     
     const rapidApiOptions = {
-      method: 'GET',
-      headers: {
-        'X-RapidAPI-Key': apiKeyRapid,
-        'X-RapidAPI-Host': 'api-nba-v1.p.rapidapi.com'
-      }
+        method: 'GET',
+        headers: {
+            'X-RapidAPI-Key': apiKeyRapid,
+            'X-RapidAPI-Host': 'api-nba-v1.p.rapidapi.com'
+        }
+    };
+
+    const fetchGames = async (url, dateLabel) => {
+        try {
+            const res = await fetch(url, rapidApiOptions);
+            if (!res.ok) {
+                console.error(`Failed to fetch ${dateLabel} NBA games: ${res.status} ${res.statusText}`);
+                return { response: [] };
+            }
+            const data = await res.json();
+            return data;
+        } catch (err) {
+            console.error(`Network error while fetching ${dateLabel} NBA games:`, err);
+            return { response: [] };
+        }
     };
 
     try {
@@ -45,23 +59,26 @@ export async function getCombinedNBAGames() {
 
         // Fetch NBA data for current day and next day
         const [currentDayResponse, nextDayResponse] = await Promise.all([
-                fetch(`https://api-nba-v1.p.rapidapi.com/games?date=${dateString}`, rapidApiOptions).then(res => res.json()).catch(err => { console.error('Failed to fetch current day NBA games:', err); return { response: [] }; }),
-                fetch(`https://api-nba-v1.p.rapidapi.com/games?date=${nextDayDate}`, rapidApiOptions).then(res => res.json()).catch(err => { console.error('Failed to fetch next day NBA games:', err); return { response: [] }; })
-
+            fetchGames(`https://api-nba-v1.p.rapidapi.com/games?date=${dateString}`, 'current day'),
+            fetchGames(`https://api-nba-v1.p.rapidapi.com/games?date=${nextDayDate}`, 'next day')
         ]);
 
+        // Validate and combine responses
+        const currentGames = Array.isArray(currentDayResponse.response) ? currentDayResponse.response : [];
+        const nextGames = Array.isArray(nextDayResponse.response) ? nextDayResponse.response : [];
+
         // Combine responses and filter for games before 22:00 UTC on the next day
-        const combinedRapidGames = [...currentDayResponse.response, ...nextDayResponse.response]
+        const combinedRapidGames = [...currentGames, ...nextGames]
             .filter(game => new Date(game.date.start).toISOString() < `${nextDayDate}T22:00:00Z`)
             .map(game => ({
                 gameId: game.id,
                 homeTeam: {
-                  name: game.teams.home.name,
-                  alias: game.teams.home.code,
+                    name: game.teams.home.name,
+                    alias: game.teams.home.code,
                 },
                 awayTeam: {
-                  name: game.teams.visitors.name,
-                  alias: game.teams.visitors.code,
+                    name: game.teams.visitors.name,
+                    alias: game.teams.visitors.code,
                 },
                 date: moment(game.date.start).tz('America/New_York').format('YYYY-MM-DD'),
                 time: moment(game.date.start).tz('America/New_York').format('HH:mm')
@@ -87,6 +104,7 @@ export async function getCombinedNBAGames() {
         return [];
     }
 }
+
 //CHECK HALFTIME
 export async function checkHalftimeStatus(gameId) {
     const url = `https://api-nba-v1.p.rapidapi.com/games?id=${gameId}`;

@@ -247,10 +247,10 @@ export async function aggregateGameData(gameId) {
 
        // Combine all relevant game data
        const completeGameData = {
-        homeTeam: game.homeTeam.name,
+        ...game, // Spread first
+        homeTeam: game.homeTeam.name, // Then overwrite with strings
         awayTeam: game.awayTeam.name,
         date: game.date,
-        ...game,
         playerProps,
         playerStats
     };

@@ -124,21 +124,30 @@ function scheduleEndGameCheck(game) {
 
     schedule.scheduleJob(threeHoursLater, function() {
         console.log(`Running end-game check for game ${game.gameId}...`);
-        performEndGameCheck(game);
+        performEndGameCheck(game); // Pass the game object
     });
 }
+async function performEndGameCheck(game) {
+    const gameDescription = `${game.homeTeam} vs ${game.awayTeam}`;
+    const playerStats = await fetchEndGameStats(game.gameId); // Fetches updated stats
+    const bets = await fetchStoredBets(gameDescription); // Fetch bets using game description
 
-async function performEndGameCheck(gameId) {
-    const playerStats = await fetchEndGameStats(gameId); // Ensure this fetches updated stats
-    const bets = await fetchStoredBets(gameId); // This needs a new function to retrieve bets from DB
+    for (const bet of bets) {
+        const playerStat = playerStats.find(p => p.PlayerName === bet.player);
+        let hitStatus = false; // Default to false
 
-    bets.forEach(async (bet) => {
-        const playerStat = playerStats.find(p => p.PlayerID === bet.player_id); // Adjust field as necessary
-        if (playerStat && playerStat.Points >= bet.line) {
-            updateHitStatus(bet.id, true); // Mark 'hit' as true if condition met
+        if (playerStat) {
+            hitStatus = playerStat.Points >= bet.line;
+        } else {
+            console.warn(`No stats found for player ${bet.player} in game ${gameDescription}`);
+            // You can decide whether to set hitStatus to false or leave it as NULL
         }
-    });
+
+        // Update the hit status in the database
+        await updateHitStatus(bet.id, hitStatus);
+    }
 }
+
 /**
  * Schedules the initial halftime check for one hour after the game starts.
  */
@@ -181,9 +190,9 @@ async function checkAndRepeatHalftime(game) {
         
     }
 }
-async function fetchStoredBets(gameId) {
-    const query = 'SELECT id, player, line FROM selected WHERE game = $1';
-    const { rows } = await pool.query(query, [gameId]);
+async function fetchStoredBets(gameDescription) {
+    const query = 'SELECT id, player, line FROM selected WHERE game = $1 AND hit IS NULL';
+    const { rows } = await pool.query(query, [gameDescription]);
     return rows;
 }
 
@@ -197,12 +206,13 @@ async function updateHitStatus(betId, hitStatus) {
 async function predictAndWriteToDatabase(gameData) {
     const selectedBets = await predict(gameData.gameId);
     if (selectedBets.length > 0) {
-        console.log(selectedBets)
+        console.log(`Home Team: ${gameData.homeTeam}, Away Team: ${gameData.awayTeam}`);
         writeToDatabase(selectedBets, gameData.homeTeam, gameData.awayTeam, String(gameData.date));
     } else {
         console.log(`No bets selected for game ${gameData.homeTeam} vs ${gameData.awayTeam}`);
     }
 }
+
 async function writeToDatabase(selectedBets, homeTeam, awayTeam, gameDate) {
     const query = `
     INSERT INTO selected (game, date, player, current_points, line, difference, odds, hit)
@@ -210,7 +220,6 @@ async function writeToDatabase(selectedBets, homeTeam, awayTeam, gameDate) {
 
     try {
         await Promise.all(selectedBets.map(bet => {
-            const hit = bet.DifferenceNeeded <= 5; // Example logic for 'hit'
             const game = `${homeTeam} vs ${awayTeam}`;
             return pool.query(query, [
                 game,
@@ -220,7 +229,7 @@ async function writeToDatabase(selectedBets, homeTeam, awayTeam, gameDate) {
                 bet.Line,
                 bet.DifferenceNeeded,
                 bet.Odds,
-                false
+                null // Set 'hit' to NULL
             ]);
         }));
         console.log(`Data has been written to the database for game ${homeTeam} vs ${awayTeam}.`);
